@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: vibecloud
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/vibecloud?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
+    show-sql: ${JPA_SHOW_SQL:false}
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:50MB}
+      max-request-size: ${MAX_REQUEST_SIZE:50MB}
+
+app:
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:minioadmin}
+    secret-key: ${S3_SECRET_KEY:minioadmin}
+    bucket: ${S3_BUCKET:vibecloud}
+    path-style-access-enabled: ${S3_PATH_STYLE_ACCESS_ENABLED:true}
