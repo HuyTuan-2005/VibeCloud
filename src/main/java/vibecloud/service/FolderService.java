@@ -65,6 +65,43 @@ public class FolderService {
                 .toList();
     }
 
+    @Transactional
+    public Folder findOrCreateFolderByName(UUID userId, UUID parentId, String folderName) {
+        // If no folderName provided, return null (file will be stored at root)
+        if (!StringUtils.hasText(folderName)) {
+            return resolveParent(userId, parentId);
+        }
+
+        var parent = resolveParent(userId, parentId);
+        var normalizedName = normalizeFolderName(folderName);
+
+        // Try to find existing folder by loading children and matching name (case-insensitive)
+        var existing = parent == null
+                ? folderRepository.findByUserIdAndParentIsNull(userId).stream()
+                : folderRepository.findByUserIdAndParentId(userId, parent.getId()).stream();
+
+        var found = existing.filter(f -> f.getName() != null && f.getName().equalsIgnoreCase(normalizedName))
+                .findFirst();
+
+        if (found.isPresent()) {
+            return found.get();
+        }
+
+        // Ensure name availability and create
+        ensureFolderNameIsAvailable(userId, parent, normalizedName);
+
+        var user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        var folder = Folder.builder()
+                .name(normalizedName)
+                .user(user)
+                .parent(parent)
+                .build();
+
+        return folderRepository.save(folder);
+    }
+
     private Folder resolveParent(UUID userId, UUID parentId) {
         if (parentId == null) {
             return null;

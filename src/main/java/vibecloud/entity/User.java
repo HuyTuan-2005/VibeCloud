@@ -34,6 +34,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class User {
 
+    public static final long DEFAULT_MAX_STORAGE = 10L * 1024 * 1024 * 1024;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -41,6 +43,9 @@ public class User {
 
     @Column(name = "username", nullable = false, length = 50)
     private String username;
+
+    @Column(name = "full_name", length = 120)
+    private String fullName;
 
     @Column(name = "password", nullable = false)
     private String password;
@@ -50,6 +55,14 @@ public class User {
 
     @Column(name = "role", nullable = false, length = 30)
     private String role;
+
+    @Builder.Default
+    @Column(name = "used_storage", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private Long usedStorage = 0L;
+
+    @Builder.Default
+    @Column(name = "max_storage", nullable = false, columnDefinition = "BIGINT DEFAULT 10737418240")
+    private Long maxStorage = DEFAULT_MAX_STORAGE;
 
     @Builder.Default
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)

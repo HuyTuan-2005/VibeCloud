@@ -3,9 +3,9 @@ package vibecloud.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
+import org.apache.tika.Tika;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
-import org.springframework.http.MediaTypeFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,16 +15,20 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import vibecloud.config.AsyncConfig;
 import vibecloud.config.S3Config.S3Properties;
+import vibecloud.dto.file.FileContentResponse;
 import vibecloud.dto.file.FileResponse;
 import vibecloud.entity.File;
 import vibecloud.entity.FileMetadata;
 import vibecloud.entity.Folder;
+import vibecloud.entity.User;
 import vibecloud.enums.FileStatus;
+import vibecloud.exception.QuotaExceededException;
 import vibecloud.exception.StorageException;
 import vibecloud.repository.FileMetadataRepository;
 import vibecloud.repository.FileRepository;
@@ -53,15 +57,28 @@ public class FileService {
 
     private final S3Client s3Client;
     private final S3Properties s3Properties;
+    private final Tika tika;
     private final UserRepository userRepository;
     private final FolderRepository folderRepository;
+    private final FolderService folderService;
     private final FileRepository fileRepository;
     private final FileMetadataRepository fileMetadataRepository;
     private final ObjectProvider<FileService> selfProvider;
 
     @Transactional
     public FileResponse uploadFile(UUID userId, UUID folderId, MultipartFile multipartFile) {
-        return FileResponse.from(upload(userId, folderId, multipartFile));
+        var file = upload(userId, folderId, multipartFile);
+        return FileResponse.from(file, buildPublicUrl(file.getFileKey()));
+    }
+
+    @Transactional
+    public FileResponse uploadWithFolder(UUID userId, UUID parentId, String folderName, MultipartFile multipartFile) {
+        // Find or create provided folderName under parentId (if provided)
+        var folder = folderService.findOrCreateFolderByName(userId, parentId, folderName);
+        var folderId = folder == null ? null : folder.getId();
+
+        var file = upload(userId, folderId, multipartFile);
+        return FileResponse.from(file, buildPublicUrl(file.getFileKey()));
     }
 
     @Transactional(readOnly = true)
@@ -76,14 +93,73 @@ public class FileService {
             resolveFolder(userId, folderId);
             return fileRepository.findByUserIdAndFolderIdOrderByOriginalNameAsc(userId, folderId)
                     .stream()
-                    .map(FileResponse::from)
+                    .map(file -> FileResponse.from(file, buildPublicUrl(file.getFileKey())))
                     .toList();
         }
 
         return fileRepository.findByUserIdOrderByOriginalNameAsc(userId)
                 .stream()
-                .map(FileResponse::from)
+                .map(file -> FileResponse.from(file, buildPublicUrl(file.getFileKey())))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public FileContentResponse getFileContent(UUID userId, UUID fileId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(fileId, "fileId must not be null");
+
+        var file = fileRepository.findByIdAndUserId(fileId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+
+        try {
+            return new FileContentResponse(
+                    file.getOriginalName(),
+                    file.getMimeType(),
+                    getObjectBytes(file.getFileKey())
+            );
+        } catch (IOException exception) {
+            throw new StorageException("Cannot read file content. fileId=" + fileId, exception);
+        }
+    }
+
+    @Transactional
+    public FileResponse moveToTrash(UUID userId, UUID fileId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(fileId, "fileId must not be null");
+
+        var file = fileRepository.findByIdAndUserId(fileId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+        file.setStatus(FileStatus.DELETED);
+
+        return FileResponse.from(fileRepository.save(file), buildPublicUrl(file.getFileKey()));
+    }
+
+    @Transactional
+    public FileResponse restoreFromTrash(UUID userId, UUID fileId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(fileId, "fileId must not be null");
+
+        var file = fileRepository.findByIdAndUserId(fileId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+
+        if (file.getStatus() == FileStatus.DELETED) {
+            file.setStatus(FileStatus.COMPLETED);
+        }
+
+        return FileResponse.from(fileRepository.save(file), buildPublicUrl(file.getFileKey()));
+    }
+
+    @Transactional
+    public void deletePermanently(UUID userId, UUID fileId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(fileId, "fileId must not be null");
+
+        var file = fileRepository.findByIdAndUserId(fileId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+
+        deleteObject(file.getFileKey());
+        refundStorage(userId, file.getSize() == null ? 0L : file.getSize());
+        fileRepository.delete(file);
     }
 
     @Transactional
@@ -97,9 +173,12 @@ public class FileService {
 
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        var uploadSize = multipartFile.getSize();
+        ensureStorageQuotaAvailable(user, uploadSize);
+
         var folder = resolveFolder(userId, folderId);
         var originalName = cleanOriginalFilename(multipartFile.getOriginalFilename());
-        var mimeType = resolveMimeType(originalName, multipartFile.getContentType());
+        var mimeType = resolveMimeType(originalName, multipartFile);
         var fileKey = buildFileKey(userId, originalName);
 
         putMultipartObject(fileKey, mimeType, multipartFile);
@@ -115,6 +194,7 @@ public class FileService {
                 .build();
 
         var savedFile = fileRepository.save(file);
+        reserveStorage(user, uploadSize);
 
         if (isCompressibleImage(mimeType)) {
             runAfterCommit(() -> selfProvider.getObject().compressImageAsync(savedFile.getId()));
@@ -142,6 +222,7 @@ public class FileService {
             fileRepository.save(file);
 
             var originalBytes = getObjectBytes(file.getFileKey());
+            var originalSize = file.getSize() == null ? (long) originalBytes.length : file.getSize();
             var image = ImageIO.read(new ByteArrayInputStream(originalBytes));
             if (image == null) {
                 throw new IllegalArgumentException("Uploaded object is not a readable image: " + file.getFileKey());
@@ -149,9 +230,11 @@ public class FileService {
 
             var outputFormat = resolveOutputFormat(file.getMimeType());
             var compressedBytes = compressImage(originalBytes, outputFormat);
-            if (compressedBytes.length < originalBytes.length) {
+            var compressedSize = (long) compressedBytes.length;
+            if (compressedSize < originalSize) {
                 putBytesObject(file.getFileKey(), file.getMimeType(), compressedBytes);
-                file.setSize((long) compressedBytes.length);
+                refundStorage(file.getUser().getId(), originalSize - compressedSize);
+                file.setSize(compressedSize);
             }
 
             var resolution = "%dx%d".formatted(image.getWidth(), image.getHeight());
@@ -162,7 +245,7 @@ public class FileService {
             log.info(
                     "Image processing completed. fileId={}, originalSize={}, finalSize={}",
                     fileId,
-                    originalBytes.length,
+                    originalSize,
                     file.getSize()
             );
             return CompletableFuture.completedFuture(null);
@@ -229,6 +312,19 @@ public class FileService {
         }
     }
 
+    private void deleteObject(String fileKey) {
+        var request = DeleteObjectRequest.builder()
+                .bucket(s3Properties.bucket())
+                .key(fileKey)
+                .build();
+
+        try {
+            s3Client.deleteObject(request);
+        } catch (S3Exception exception) {
+            throw new StorageException("Cannot delete file from S3. key=" + fileKey, exception);
+        }
+    }
+
     private byte[] compressImage(byte[] originalBytes, String outputFormat) throws IOException {
         try (var inputStream = new ByteArrayInputStream(originalBytes);
              var outputStream = new ByteArrayOutputStream()) {
@@ -246,6 +342,56 @@ public class FileService {
         upsertMetadata(file, null, extractExtension(file.getOriginalName()));
         file.setStatus(FileStatus.COMPLETED);
         fileRepository.save(file);
+    }
+
+    private void ensureStorageQuotaAvailable(User user, long uploadSize) {
+        var usedStorage = normalizeUsedStorage(user);
+        var maxStorage = normalizeMaxStorage(user);
+
+        if (uploadSize > maxStorage - usedStorage) {
+            throw new QuotaExceededException("Dung lượng lưu trữ đã đầy");
+        }
+    }
+
+    private void reserveStorage(User user, long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+
+        user.setUsedStorage(normalizeUsedStorage(user) + bytes);
+        user.setMaxStorage(normalizeMaxStorage(user));
+        userRepository.save(user);
+    }
+
+    private void refundStorage(UUID userId, long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+
+        userRepository.findById(userId).ifPresent(user -> {
+            var updatedUsedStorage = Math.max(0L, normalizeUsedStorage(user) - bytes);
+            user.setUsedStorage(updatedUsedStorage);
+            user.setMaxStorage(normalizeMaxStorage(user));
+            userRepository.save(user);
+        });
+    }
+
+    private long normalizeUsedStorage(User user) {
+        var usedStorage = user.getUsedStorage();
+        if (usedStorage == null || usedStorage < 0) {
+            return 0L;
+        }
+
+        return usedStorage;
+    }
+
+    private long normalizeMaxStorage(User user) {
+        var maxStorage = user.getMaxStorage();
+        if (maxStorage == null || maxStorage <= 0) {
+            return User.DEFAULT_MAX_STORAGE;
+        }
+
+        return maxStorage;
     }
 
     private void upsertMetadata(File file, String resolution, String extension) {
@@ -290,15 +436,28 @@ public class FileService {
         return cleanedName;
     }
 
-    private String resolveMimeType(String originalName, String contentType) {
-        if (StringUtils.hasText(contentType)) {
-            return contentType.toLowerCase(Locale.ROOT);
-        }
+    private String resolveMimeType(String originalName, MultipartFile multipartFile) {
+        try (var inputStream = multipartFile.getInputStream()) {
+            var detectedMimeType = tika.detect(inputStream, originalName);
+            var normalizedMimeType = StringUtils.hasText(detectedMimeType)
+                    ? detectedMimeType.toLowerCase(Locale.ROOT)
+                    : MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
-        return MediaTypeFactory.getMediaType(originalName)
-                .map(MediaType::toString)
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .orElse(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            var declaredMimeType = multipartFile.getContentType();
+            if (StringUtils.hasText(declaredMimeType)
+                    && !normalizedMimeType.equalsIgnoreCase(declaredMimeType)) {
+                log.warn(
+                        "Uploaded file content type mismatch. originalName={}, declared={}, detected={}",
+                        originalName,
+                        declaredMimeType,
+                        normalizedMimeType
+                );
+            }
+
+            return normalizedMimeType;
+        } catch (IOException exception) {
+            throw new StorageException("Cannot inspect uploaded file content type", exception);
+        }
     }
 
     private String buildFileKey(UUID userId, String originalName) {
@@ -307,6 +466,38 @@ public class FileService {
         var extensionSuffix = StringUtils.hasText(extension) ? "." + extension : "";
 
         return "users/%s/%s/%s%s".formatted(userId, monthPath, UUID.randomUUID(), extensionSuffix);
+    }
+
+    private String buildPublicUrl(String fileKey) {
+        if (!StringUtils.hasText(s3Properties.endpoint()) || !StringUtils.hasText(s3Properties.bucket())) {
+            throw new IllegalStateException("S3 endpoint and bucket must be configured to build public URL");
+        }
+
+        return "%s/%s/%s".formatted(
+                removeTrailingSlashes(s3Properties.endpoint()),
+                removeWrappingSlashes(s3Properties.bucket()),
+                removeLeadingSlashes(fileKey)
+        );
+    }
+
+    private String removeWrappingSlashes(String value) {
+        return removeTrailingSlashes(removeLeadingSlashes(value));
+    }
+
+    private String removeLeadingSlashes(String value) {
+        var result = value;
+        while (result.startsWith("/")) {
+            result = result.substring(1);
+        }
+        return result;
+    }
+
+    private String removeTrailingSlashes(String value) {
+        var result = value;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 
     private String extractExtension(String filename) {
