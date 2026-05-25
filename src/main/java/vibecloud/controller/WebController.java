@@ -22,6 +22,7 @@ import vibecloud.service.FileService;
 import vibecloud.service.FolderService;
 import vibecloud.service.UserService;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -111,9 +112,11 @@ public class WebController {
         return "redirect:/login";
     }
 
+    // Cập nhật lại hàm index trong WebController.java
     @GetMapping("/")
     public String index(
             @RequestParam(required = false) UUID folderId,
+            @RequestParam(required = false) String keyword,
             HttpSession session,
             Model model
     ) {
@@ -124,18 +127,30 @@ public class WebController {
 
         addCurrentUserAttributes(model, currentUser);
 
-        // Lấy danh sách file và folder thuộc về folderId hiện tại (nếu folderId null thì lấy ở Root)
-        var files = fileService.listFiles(currentUser.getId(), folderId)
-                .stream()
-                .filter(file -> !hasDeletedStatus(file.status()))
-                .toList();
-        var folders = folderService.listFolders(currentUser.getId(), folderId)
-                .stream()
-                .filter(folder -> !hasDeletedStatus(folder))
-                .toList();
+        List<FileResponse> files;
+        List<FolderResponse> folders;
+        List<FolderResponse> breadcrumbs;
 
-        // Lấy đường dẫn Breadcrumbs
-        var breadcrumbs = folderService.getFolderBreadcrumbs(currentUser.getId(), folderId);
+        if (org.springframework.util.StringUtils.hasText(keyword)) {
+            files = fileService.searchFiles(currentUser.getId(), keyword)
+                    .stream()
+                    .filter(file -> !hasDeletedStatus(file.status()))
+                    .toList();
+            folders = List.of();
+            breadcrumbs = List.of();
+            model.addAttribute("searchKeyword", keyword);
+        }
+        else {
+            files = fileService.listFiles(currentUser.getId(), folderId)
+                    .stream()
+                    .filter(file -> !hasDeletedStatus(file.status()))
+                    .toList();
+            folders = folderService.listFolders(currentUser.getId(), folderId)
+                    .stream()
+                    .filter(folder -> !hasDeletedStatus(folder))
+                    .toList();
+            breadcrumbs = folderService.getFolderBreadcrumbs(currentUser.getId(), folderId);
+        }
 
         model.addAttribute("files", files);
         model.addAttribute("folders", folders);

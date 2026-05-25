@@ -76,15 +76,16 @@
   <main class="ml-64 min-h-screen">
     <header class="sticky top-0 z-10 border-b border-slate-200 bg-gray-50/90 px-8 py-5 backdrop-blur">
       <div class="flex items-center gap-4">
-        <div class="relative flex-1">
+        <form th:action="@{/}" method="get" class="relative flex-1">
           <i data-lucide="search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"></i>
-          <input type="search" placeholder="Tìm kiếm tệp, thư mục..." class="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-        </div>
+          <input type="search" name="keyword" th:value="${searchKeyword}" placeholder="Tìm kiếm tệp..." class="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </form>
       </div>
     </header>
 
     <div class="space-y-8 p-8">
-      <nav aria-label="Breadcrumb" class="flex items-center text-sm font-semibold text-slate-600">
+
+      <nav th:if="${searchKeyword == null}" aria-label="Breadcrumb" class="flex items-center text-sm font-semibold text-slate-600">
         <a th:href="@{/}" class="flex items-center gap-2 hover:text-blue-600 transition">
           <i data-lucide="home" class="h-4 w-4"></i> Trang chủ
         </a>
@@ -94,7 +95,7 @@
         </th:block>
       </nav>
 
-      <section>
+      <section th:if="${searchKeyword == null}">
         <div id="dropzone" class="group flex min-h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-soft cursor-pointer" onclick="document.getElementById('fileInput').click()">
           <div class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
             <i data-lucide="upload-cloud" class="h-8 w-8"></i>
@@ -120,7 +121,7 @@
         </div>
       </section>
 
-      <section th:if="${!folders.isEmpty() or currentFolderId == null}">
+      <section th:if="${searchKeyword == null and (!folders.isEmpty() or currentFolderId == null)}">
         <div class="mb-5 flex items-end justify-between">
           <h2 class="text-2xl font-bold text-slate-950">Thư mục</h2>
           <button id="createFolderButton" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-md">
@@ -143,18 +144,25 @@
       </section>
 
       <section>
-        <div class="mb-5 flex items-end justify-between">
+        <div th:if="${searchKeyword == null}" class="mb-5 flex items-end justify-between">
           <h2 class="text-2xl font-bold text-slate-950">Tệp tin</h2>
         </div>
 
-        <div th:if="${files.isEmpty()}" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-16 text-slate-400">
-          <i data-lucide="folder-open" class="h-12 w-12 mb-3"></i>
-          <p class="font-medium">Thư mục này trống</p>
+        <div th:if="${searchKeyword != null}" class="mb-5 flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-slate-950" th:text="'Kết quả tìm kiếm cho: &quot;' + ${searchKeyword} + '&quot;'">Kết quả tìm kiếm</h2>
+          <a th:href="@{/}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-rose-200 hover:text-rose-700 hover:shadow-md">
+            <i data-lucide="x" class="h-4 w-4"></i> Hủy tìm kiếm
+          </a>
+        </div>
+
+        <div th:if="${files.isEmpty()}" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-16 text-slate-400 bg-white">
+          <i th:if="${searchKeyword == null}" data-lucide="folder-open" class="h-12 w-12 mb-3"></i>
+          <i th:if="${searchKeyword != null}" data-lucide="search-x" class="h-12 w-12 mb-3"></i>
+          <p class="font-medium" th:text="${searchKeyword != null ? 'Không tìm thấy tệp nào phù hợp.' : 'Thư mục này trống.'}">Thư mục này trống</p>
         </div>
 
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           <article th:each="file : ${files}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
-
             <div th:if="${file.mimeType != null and #strings.startsWith(file.mimeType, 'image/')}" class="relative aspect-video overflow-hidden bg-slate-100">
               <img th:src="@{/api/files/{id}/preview(id=${file.id}, userId=${userId})}" alt="Preview" class="h-full w-full object-cover transition duration-500 hover:scale-105" />
               <div th:if="${file.status != null and file.status.name() == 'PROCESSING'}" class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/80 backdrop-blur-sm">

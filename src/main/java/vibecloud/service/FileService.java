@@ -537,4 +537,17 @@ public class FileService {
             }
         });
     }
+    @Transactional(readOnly = true)
+    public List<FileResponse> searchFiles(UUID userId, String keyword) {
+        Objects.requireNonNull(userId, "userId must not be null");
+
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
+
+        return fileRepository.findByUserIdAndOriginalNameContainingIgnoreCaseOrderByOriginalNameAsc(userId, keyword)
+                .stream()
+                .map(file -> FileResponse.from(file, buildPublicUrl(file.getFileKey())))
+                .toList();
+    }
 }

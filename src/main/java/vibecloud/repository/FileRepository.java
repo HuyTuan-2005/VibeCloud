@@ -30,4 +30,7 @@ public interface FileRepository extends JpaRepository<File, UUID> {
     List<File> findByUserIdAndFolderIdOrderByOriginalNameAsc(UUID userId, UUID folderId);
 
     List<File> findByStatus(FileStatus status);
+
+    @EntityGraph(attributePaths = {"user", "folder", "metadata"})
+    List<File> findByUserIdAndOriginalNameContainingIgnoreCaseOrderByOriginalNameAsc(UUID userId, String keyword);
 }
