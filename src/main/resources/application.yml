@@ -58,7 +58,7 @@ app:
   s3:
     endpoint: https://s3.us-east-005.backblazeb2.com
     region: us-east-005
-    access-key: 0057b43ef905c2f0000000001
-    secret-key: K005+UMN65f3De3/GooLFJWTD+InjGc
-    bucket: vibecloud-media-huit
+    access-key: 0057b43ef905c2f0000000002
+    secret-key: K0050Hcu5SqOSLMhI7gufIJ+bClomn0
+    bucket: vibecloud-media-java
     path-style-access-enabled: true

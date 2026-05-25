@@ -132,4 +132,22 @@ public class FolderService {
             throw new ResourceConflictException("Folder name already exists in this location: " + folderName);
         }
     }
+    @Transactional(readOnly = true)
+    public List<FolderResponse> getFolderBreadcrumbs(UUID userId, UUID folderId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        if (folderId == null) {
+            return List.of();
+        }
+
+        var breadcrumbs = new java.util.ArrayList<FolderResponse>();
+        var current = folderRepository.findByIdAndUserId(folderId, userId).orElse(null);
+
+        while (current != null) {
+            breadcrumbs.add(0, FolderResponse.from(current));
+            current = current.getParent();
+        }
+
+        return breadcrumbs;
+    }
+
 }

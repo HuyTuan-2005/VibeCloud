@@ -9,6 +9,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vibecloud.dto.auth.LoginRequest;
 import vibecloud.dto.auth.RegisterRequest;
@@ -111,7 +112,11 @@ public class WebController {
     }
 
     @GetMapping("/")
-    public String index(HttpSession session, Model model) {
+    public String index(
+            @RequestParam(required = false) UUID folderId,
+            HttpSession session,
+            Model model
+    ) {
         var currentUser = resolveCurrentUser(session);
         if (currentUser == null) {
             return "redirect:/login";
@@ -119,17 +124,24 @@ public class WebController {
 
         addCurrentUserAttributes(model, currentUser);
 
-        var files = fileService.listFiles(currentUser.getId(), null)
+        // Lấy danh sách file và folder thuộc về folderId hiện tại (nếu folderId null thì lấy ở Root)
+        var files = fileService.listFiles(currentUser.getId(), folderId)
                 .stream()
                 .filter(file -> !hasDeletedStatus(file.status()))
                 .toList();
-        var folders = folderService.listFolders(currentUser.getId(), null)
+        var folders = folderService.listFolders(currentUser.getId(), folderId)
                 .stream()
                 .filter(folder -> !hasDeletedStatus(folder))
                 .toList();
 
+        // Lấy đường dẫn Breadcrumbs
+        var breadcrumbs = folderService.getFolderBreadcrumbs(currentUser.getId(), folderId);
+
         model.addAttribute("files", files);
         model.addAttribute("folders", folders);
+        model.addAttribute("breadcrumbs", breadcrumbs);
+        model.addAttribute("currentFolderId", folderId);
+
         return "index";
     }
 
@@ -223,24 +235,6 @@ public class WebController {
         session.setAttribute(CURRENT_USER_ID_SESSION_KEY, user.getId());
     }
 
-    private void addCurrentUserAttributes(Model model, User user) {
-        var displayName = resolveDisplayName(user);
-        var usedStorage = normalizeUsedStorage(user);
-        var maxStorage = normalizeMaxStorage(user);
-
-        user.setUsedStorage(usedStorage);
-        user.setMaxStorage(maxStorage);
-
-        model.addAttribute("user", user);
-        model.addAttribute("userId", user.getId());
-        model.addAttribute("username", displayName);
-        model.addAttribute("accountUsername", user.getUsername());
-        model.addAttribute("email", user.getEmail());
-        model.addAttribute("initials", resolveInitials(displayName, user.getUsername()));
-        model.addAttribute("usedStorageGb", formatGb(usedStorage));
-        model.addAttribute("maxStorageGb", formatGb(maxStorage));
-        model.addAttribute("storageUsagePercent", calculateStorageUsagePercent(usedStorage, maxStorage));
-    }
 
     private long normalizeUsedStorage(User user) {
         var usedStorage = user.getUsedStorage();
@@ -259,20 +253,56 @@ public class WebController {
 
         return maxStorage;
     }
+    private void addCurrentUserAttributes(Model model, User user) {
+        var displayName = resolveDisplayName(user);
+        var usedStorage = normalizeUsedStorage(user);
+        var maxStorage = normalizeMaxStorage(user);
 
-    private String formatGb(long bytes) {
-        var gigabytes = bytes / BYTES_PER_GB;
-        var pattern = gigabytes % 1D == 0D ? "%.0f" : "%.1f";
-        return String.format(Locale.US, pattern, gigabytes);
+        user.setUsedStorage(usedStorage);
+        user.setMaxStorage(maxStorage);
+
+        model.addAttribute("user", user);
+        model.addAttribute("userId", user.getId());
+        model.addAttribute("username", displayName);
+        model.addAttribute("accountUsername", user.getUsername());
+        model.addAttribute("email", user.getEmail());
+        model.addAttribute("initials", resolveInitials(displayName, user.getUsername()));
+
+        // Cập nhật: Trả về chuỗi dung lượng linh hoạt (KB, MB, GB) thay vì fix cứng GB
+        model.addAttribute("usedStorageText", formatStorage(usedStorage));
+        model.addAttribute("maxStorageText", formatStorage(maxStorage));
+
+        // Tính toán phần trăm (giữ lại số thập phân)
+        double percent = calculateStorageUsagePercent(usedStorage, maxStorage);
+        model.addAttribute("storageUsagePercent", String.format(Locale.US, "%.1f", percent));
     }
 
-    private long calculateStorageUsagePercent(long usedStorage, long maxStorage) {
-        if (maxStorage <= 0) {
-            return 0L;
+    // Hàm format mới: Tự động tính toán hiển thị B, KB, MB hoặc GB
+    private String formatStorage(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        String[] units = {"KB", "MB", "GB", "TB"};
+        double size = bytes / 1024.0;
+        int unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024.0;
+            unitIndex++;
         }
-
-        return Math.min(100L, Math.round(usedStorage * 100D / maxStorage));
+        return String.format(Locale.US, "%.2f %s", size, units[unitIndex]).replace(".00 ", " ");
     }
+
+    // Hàm tính % mới: Cố định hiển thị số thập phân
+    private double calculateStorageUsagePercent(long usedStorage, long maxStorage) {
+        if (maxStorage <= 0) return 0.0;
+        double percent = (usedStorage * 100.0) / maxStorage;
+        // Nếu user có dùng dung lượng nhưng nhỏ hơn 0.1%, vẫn hiển thị 0.1% để thanh có màu
+        if (usedStorage > 0 && percent < 0.1) {
+            return 0.1;
+        }
+        return Math.min(100.0, percent);
+    }
+
+
+
 
     private String resolveDisplayName(User user) {
         return hasText(user.getFullName()) ? user.getFullName() : user.getUsername();

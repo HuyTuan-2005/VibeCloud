@@ -13,604 +13,315 @@
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: {
-            sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"]
-          },
-          boxShadow: {
-            soft: "0 18px 45px rgba(15, 23, 42, 0.08)"
-          }
+          fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+          boxShadow: { soft: "0 18px 45px rgba(15, 23, 42, 0.08)" }
         }
       }
     };
   </script>
 </head>
-<body class="bg-gray-50 font-sans text-slate-900 antialiased" th:attr="data-user-id=${userId}">
-  <div class="min-h-screen">
-    <aside class="fixed inset-y-0 left-0 z-20 flex w-64 flex-col border-r border-slate-200 bg-white">
-      <div class="flex h-20 items-center gap-3 px-6">
-        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
-          <i data-lucide="cloud" class="h-6 w-6"></i>
+<body class="bg-gray-50 font-sans text-slate-900 antialiased" th:attr="data-user-id=${userId}, data-folder-id=${currentFolderId}">
+<div class="min-h-screen">
+  <aside class="fixed inset-y-0 left-0 z-20 flex w-64 flex-col border-r border-slate-200 bg-white">
+    <div class="flex h-20 items-center gap-3 px-6">
+      <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+        <i data-lucide="cloud" class="h-6 w-6"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-extrabold tracking-tight text-slate-950">VibeCloud</h1>
+        <p class="text-xs font-medium text-slate-500">Cloud Storage</p>
+      </div>
+    </div>
+
+    <nav class="mt-4 flex-1 space-y-1 px-4">
+      <a th:href="@{/}" class="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
+        <i data-lucide="folder-open" class="h-5 w-5"></i> Tệp của tôi
+      </a>
+
+      <a th:href="@{/trash}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+        <i data-lucide="trash-2" class="h-5 w-5"></i> Thùng rác
+      </a>
+      <a th:href="@{/profile}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+        <i data-lucide="settings" class="h-5 w-5"></i> Cài đặt
+      </a>
+    </nav>
+
+    <div class="space-y-5 px-4 pb-5">
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <i data-lucide="database" class="h-4 w-4 text-blue-600"></i>
+            Backblaze B2
+          </div>
+          <span class="text-xs font-semibold text-slate-500" th:text="${storageUsagePercent} + '%'">0.0%</span>
         </div>
-        <div>
-          <h1 class="text-lg font-extrabold tracking-tight text-slate-950">VibeCloud</h1>
-          <p class="text-xs font-medium text-slate-500">Cloud Storage</p>
+        <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+          <div class="h-full rounded-full bg-blue-600" th:style="'width: ' + ${storageUsagePercent} + '%'"></div>
+        </div>
+        <div class="mt-3 text-xs font-medium text-slate-500">
+          <span th:text="|Đã dùng ${usedStorageText} / ${maxStorageText}|">Đã dùng 0 B / 10 GB</span>
         </div>
       </div>
 
-      <nav class="mt-4 flex-1 space-y-1 px-4">
-        <a th:href="@{/}" class="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-          <i data-lucide="folder-open" class="h-5 w-5"></i>
-          Tệp của tôi
+      <a th:href="@{/profile}" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-md">
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white" th:text="${initials}">HT</div>
+        <div class="min-w-0">
+          <p class="truncate text-sm font-semibold text-slate-950" th:text="${username}"></p>
+          <p class="truncate text-xs font-medium text-slate-500" th:text="${email}"></p>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <main class="ml-64 min-h-screen">
+    <header class="sticky top-0 z-10 border-b border-slate-200 bg-gray-50/90 px-8 py-5 backdrop-blur">
+      <div class="flex items-center gap-4">
+        <div class="relative flex-1">
+          <i data-lucide="search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"></i>
+          <input type="search" placeholder="Tìm kiếm tệp, thư mục..." class="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </div>
+      </div>
+    </header>
+
+    <div class="space-y-8 p-8">
+      <nav aria-label="Breadcrumb" class="flex items-center text-sm font-semibold text-slate-600">
+        <a th:href="@{/}" class="flex items-center gap-2 hover:text-blue-600 transition">
+          <i data-lucide="home" class="h-4 w-4"></i> Trang chủ
         </a>
-        <a th:href="@{/}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
-          <i data-lucide="clock-3" class="h-5 w-5"></i>
-          Gần đây
-        </a>
-        <a th:href="@{/}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
-          <i data-lucide="star" class="h-5 w-5"></i>
-          Có gắn sao
-        </a>
-        <a th:href="@{/trash}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
-          <i data-lucide="trash-2" class="h-5 w-5"></i>
-          Thùng rác
-        </a>
-        <a th:href="@{/profile}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
-          <i data-lucide="settings" class="h-5 w-5"></i>
-          Cài đặt
-        </a>
+        <th:block th:each="crumb : ${breadcrumbs}">
+          <i data-lucide="chevron-right" class="mx-2 h-4 w-4 text-slate-400"></i>
+          <a th:href="@{/(folderId=${crumb.id})}" class="hover:text-blue-600 transition" th:text="${crumb.name}">Tên thư mục</a>
+        </th:block>
       </nav>
 
-      <div class="space-y-5 px-4 pb-5">
-        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div class="mb-3 flex items-center justify-between">
-            <div class="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <i data-lucide="database" class="h-4 w-4 text-blue-600"></i>
-              Backblaze B2
-            </div>
-            <span class="text-xs font-semibold text-slate-500" th:text="${storageUsagePercent} + '%'">68%</span>
+      <section>
+        <div id="dropzone" class="group flex min-h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-soft cursor-pointer" onclick="document.getElementById('fileInput').click()">
+          <div class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+            <i data-lucide="upload-cloud" class="h-8 w-8"></i>
           </div>
-          <div class="h-2 overflow-hidden rounded-full bg-slate-200">
-            <div class="h-full rounded-full bg-blue-600" th:style="'width: ' + (${user.usedStorage} * 100 / ${user.maxStorage}) + '%'"></div>
-          </div>
-          <div class="mt-3 text-xs font-medium text-slate-500">
-            <span th:text="|Đã dùng ${usedStorageGb} GB / ${maxStorageGb} GB|">Đã dùng 6.8 GB / 10 GB</span>
-          </div>
+          <h2 class="text-xl font-bold text-slate-950">Kéo thả file vào đây để tải lên</h2>
+          <p class="mt-2 text-sm font-medium text-slate-500">Hoặc click để chọn file từ thiết bị</p>
+          <input id="fileInput" type="file" class="hidden" multiple />
         </div>
 
-        <a th:href="@{/profile}" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-md">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white" th:text="${initials}">
-            HT
+        <div id="uploadPreviewPanel" class="mt-5 hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-extrabold text-slate-950">File chờ tải lên</h3>
+              <p id="uploadSummary" class="text-sm font-medium text-slate-500">0 file</p>
+            </div>
+            <div class="flex gap-2">
+              <button id="clearQueueButton" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-rose-50 hover:text-rose-700">Hủy bỏ</button>
+              <button id="submitUploadButton" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700">Tải lên ngay</button>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="truncate text-sm font-semibold text-slate-950" th:text="${username}">LÊ HUY TUẤN</p>
-            <p class="truncate text-xs font-medium text-slate-500" th:text="${email}">tuan.lh@huit.edu.vn</p>
-          </div>
-        </a>
-      </div>
-    </aside>
+          <div id="previewList" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+          <p id="uploadQueueStatus" class="mt-4 hidden rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700"></p>
+        </div>
+      </section>
 
-    <main class="ml-64 min-h-screen">
-      <header class="sticky top-0 z-10 border-b border-slate-200 bg-gray-50/90 px-8 py-5 backdrop-blur">
-        <div class="flex items-center gap-4">
-          <div class="relative flex-1">
-            <i data-lucide="search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"></i>
-            <input
-              type="search"
-              placeholder="Tìm kiếm tệp, thư mục, ảnh..."
-              class="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            />
-          </div>
-          <button class="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-md" aria-label="Thông báo">
-            <i data-lucide="bell" class="h-5 w-5"></i>
-            <span class="absolute right-3 top-3 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-500"></span>
+      <section th:if="${!folders.isEmpty() or currentFolderId == null}">
+        <div class="mb-5 flex items-end justify-between">
+          <h2 class="text-2xl font-bold text-slate-950">Thư mục</h2>
+          <button id="createFolderButton" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-md">
+            <i data-lucide="folder-plus" class="h-4 w-4"></i> Tạo thư mục
           </button>
         </div>
-      </header>
-
-      <div class="space-y-10 p-8">
-        <section>
-          <div
-            id="dropzone"
-            class="group flex min-h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-soft"
-          >
-            <div class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
-              <i data-lucide="upload-cloud" class="h-8 w-8"></i>
-            </div>
-            <h2 class="text-xl font-bold text-slate-950">Kéo thả file vào đây để xem trước</h2>
-            <p class="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
-              Kiểm tra danh sách file và ảnh preview trước khi xác nhận tải lên Cloud.
-            </p>
-            <input id="fileInput" type="file" class="hidden" multiple />
-            <button
-              id="uploadButton"
-              class="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 hover:shadow-blue-600/30"
-              type="button"
-            >
-              <i data-lucide="plus" class="h-5 w-5"></i>
-              Chọn file tải lên
-            </button>
-          </div>
-
-          <div id="uploadPreviewPanel" class="mt-5 hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <h3 class="text-lg font-extrabold text-slate-950">File chờ tải lên</h3>
-                <p id="uploadSummary" class="mt-1 text-sm font-medium text-slate-500">0 file</p>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <a th:each="folder : ${folders}" th:href="@{/(folderId=${folder.id})}" class="block rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <div class="flex items-center gap-3">
+              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <i data-lucide="folder" class="h-6 w-6"></i>
               </div>
-              <div class="flex items-center gap-2">
-                <button id="clearQueueButton" class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-rose-200 hover:text-rose-700 hover:shadow-md" type="button">
-                  <i data-lucide="x" class="h-4 w-4"></i>
-                  Xóa hàng chờ
-                </button>
-                <button id="submitUploadButton" class="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 hover:shadow-blue-600/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none" type="button">
-                  <i data-lucide="cloud-upload" class="h-4 w-4"></i>
-                  Tải lên
-                </button>
+              <div class="min-w-0">
+                <h3 class="truncate font-bold text-slate-950" th:text="${folder.name}">Tên thư mục</h3>
+                <p class="text-xs font-medium text-slate-500">Thư mục</p>
               </div>
             </div>
-            <div id="previewList" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
-            <p id="uploadQueueStatus" class="mt-4 hidden rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700"></p>
-          </div>
-        </section>
+          </a>
+        </div>
+      </section>
 
-        <section>
-          <div class="mb-5 flex items-end justify-between gap-4">
-            <div>
-              <h2 class="text-2xl font-bold tracking-tight text-slate-950">Thư mục công việc</h2>
-              <p class="mt-1 text-sm font-medium text-slate-500">Các không gian lưu trữ chính của bạn</p>
+      <section>
+        <div class="mb-5 flex items-end justify-between">
+          <h2 class="text-2xl font-bold text-slate-950">Tệp tin</h2>
+        </div>
+
+        <div th:if="${files.isEmpty()}" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-16 text-slate-400">
+          <i data-lucide="folder-open" class="h-12 w-12 mb-3"></i>
+          <p class="font-medium">Thư mục này trống</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          <article th:each="file : ${files}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
+
+            <div th:if="${file.mimeType != null and #strings.startsWith(file.mimeType, 'image/')}" class="relative aspect-video overflow-hidden bg-slate-100">
+              <img th:src="@{/api/files/{id}/preview(id=${file.id}, userId=${userId})}" alt="Preview" class="h-full w-full object-cover transition duration-500 hover:scale-105" />
+              <div th:if="${file.status != null and file.status.name() == 'PROCESSING'}" class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/80 backdrop-blur-sm">
+                <i data-lucide="loader-2" class="h-8 w-8 animate-spin text-blue-600"></i>
+                <span class="animate-pulse text-xs font-bold text-slate-700">Đang xử lý...</span>
+              </div>
             </div>
-            <button id="createFolderButton" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-md" type="button">
-              <i data-lucide="folder-plus" class="h-4 w-4"></i>
-              Tạo thư mục
-            </button>
-          </div>
 
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <article th:each="folder : ${folders}" class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
-              <div class="mb-5 flex items-center justify-between">
-                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <i data-lucide="folder" class="h-6 w-6"></i>
-                </div>
-                <button class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Tùy chọn">
-                  <i data-lucide="more-horizontal" class="h-5 w-5"></i>
-                </button>
-              </div>
-              <h3 class="truncate font-bold text-slate-950" th:text="${folder.name}">Tên thư mục</h3>
-              <p class="mt-1 text-sm font-medium text-slate-500">Thư mục</p>
-            </article>
-          </div>
-        </section>
-
-        <section>
-          <div class="mb-5 flex items-end justify-between gap-4">
-            <div>
-              <h2 class="text-2xl font-bold tracking-tight text-slate-950">Tệp gần đây</h2>
-              <p class="mt-1 text-sm font-medium text-slate-500">Theo dõi trạng thái lưu trữ và xử lý ảnh</p>
+            <div th:unless="${file.mimeType != null and #strings.startsWith(file.mimeType, 'image/')}" class="flex aspect-video items-center justify-center bg-slate-50 text-slate-400">
+              <i data-lucide="file" class="h-12 w-12"></i>
             </div>
-            <button class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-md" type="button">
-              <i data-lucide="layout-grid" class="h-4 w-4"></i>
-              Xem tất cả
-            </button>
-          </div>
 
-          <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <article th:each="file : ${files}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
-              <div th:if="${file.mimeType != null and #strings.startsWith(file.mimeType, 'image/')}" class="relative aspect-video overflow-hidden bg-slate-100">
-                <img
-                  src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80"
-                  th:src="@{/api/files/{id}/preview(id=${file.id}, userId=${userId})}"
-                  alt="Ảnh tệp"
-                  th:alt="|Ảnh tệp ${file.originalName}|"
-                  class="h-full w-full object-cover transition duration-500 hover:scale-105"
-                  onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden'); this.nextElementSibling.classList.add('flex');"
-                />
-                <div class="absolute inset-0 hidden flex-col items-center justify-center gap-3 bg-slate-100 text-center text-slate-500">
-                  <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-                    <i data-lucide="image-off" class="h-8 w-8"></i>
-                  </div>
-                  <p class="px-4 text-sm font-bold text-slate-700">Chưa tải được ảnh preview</p>
+            <div class="p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="truncate text-sm font-bold text-slate-950" th:title="${file.originalName}" th:text="${file.originalName}"></h3>
+                  <p class="mt-1 text-sm font-medium text-slate-500" th:text="${file.formattedSize}">0 MB</p>
                 </div>
-                <div th:if="${file.status != null and file.status.name() == 'PROCESSING'}" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/75 text-center backdrop-blur-sm">
-                  <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
-                    <i data-lucide="loader-2" class="h-8 w-8 animate-spin"></i>
-                  </div>
-                  <p class="animate-pulse px-4 text-sm font-bold text-slate-700">Đang nén ảnh (Async)...</p>
-                </div>
-                <span th:if="${file.status != null and file.status.name() == 'COMPLETED'}" class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
-                  <i data-lucide="cloud-check" class="h-3.5 w-3.5"></i>
-                  Lưu Cloud
-                </span>
-                <span th:if="${file.status != null and file.status.name() == 'UPLOADED'}" class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-blue-700 shadow-sm">
-                  <i data-lucide="cloud-upload" class="h-3.5 w-3.5"></i>
-                  Đã nhận file
-                </span>
-              </div>
-
-              <div th:unless="${file.mimeType != null and #strings.startsWith(file.mimeType, 'image/')}" class="flex aspect-video flex-col items-center justify-center gap-3 bg-slate-100 text-center">
-                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
-                  <i data-lucide="file" class="h-8 w-8"></i>
-                </div>
-                <p class="px-4 text-sm font-bold text-slate-700" th:text="${file.status}">UPLOADED</p>
-              </div>
-
-              <div class="p-5">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <h3 class="truncate font-bold text-slate-950" th:text="${file.originalName}">ten-file.jpg</h3>
-                    <p class="mt-1 text-sm font-medium text-slate-500">
-                      <span th:text="${file.size}">0</span>
-                      <span> bytes</span>
-                    </p>
-                  </div>
-                  <button class="delete-file-button shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" type="button" th:attr="data-file-id=${file.id}" aria-label="Xóa file">
-                    <i data-lucide="trash-2" class="h-5 w-5"></i>
+                <div class="flex gap-1 shrink-0">
+                  <a th:href="@{/api/files/{id}/download(id=${file.id}, userId=${userId})}" class="rounded p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600" title="Tải xuống">
+                    <i data-lucide="download" class="h-4 w-4"></i>
+                  </a>
+                  <button class="delete-file-button rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" th:attr="data-file-id=${file.id}" title="Xóa">
+                    <i data-lucide="trash-2" class="h-4 w-4"></i>
                   </button>
                 </div>
               </div>
-            </article>
-          </div>
-        </section>
-      </div>
-    </main>
-  </div>
-
-  <div id="createFolderModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
-    <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
-      <div class="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h3 class="text-lg font-extrabold text-slate-950">Tạo thư mục mới</h3>
-          <p class="mt-1 text-sm font-medium text-slate-500">Đặt tên ngắn gọn để dễ quản lý tệp.</p>
-        </div>
-        <button id="closeCreateFolderModal" class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" type="button" aria-label="Đóng">
-          <i data-lucide="x" class="h-5 w-5"></i>
-        </button>
-      </div>
-      <form id="createFolderForm" class="space-y-4">
-        <div>
-          <label for="folderNameInput" class="mb-2 block text-sm font-bold text-slate-800">Tên thư mục</label>
-          <input id="folderNameInput" name="name" type="text" maxlength="255" placeholder="Ví dụ: Đồ án tốt nghiệp" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-        </div>
-        <p id="createFolderStatus" class="hidden rounded-xl px-4 py-3 text-sm font-semibold"></p>
-        <div class="flex items-center justify-end gap-3">
-          <button id="cancelCreateFolder" class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:shadow-md" type="button">Hủy</button>
-          <button id="submitCreateFolder" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 hover:shadow-blue-600/30" type="submit">
-            <i data-lucide="folder-plus" class="h-4 w-4"></i>
-            Tạo thư mục
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <script>
-    lucide.createIcons();
-
-    const dropzone = document.getElementById("dropzone");
-    const fileInput = document.getElementById("fileInput");
-    const uploadButton = document.getElementById("uploadButton");
-    const uploadPreviewPanel = document.getElementById("uploadPreviewPanel");
-    const previewList = document.getElementById("previewList");
-    const uploadSummary = document.getElementById("uploadSummary");
-    const uploadQueueStatus = document.getElementById("uploadQueueStatus");
-    const submitUploadButton = document.getElementById("submitUploadButton");
-    const clearQueueButton = document.getElementById("clearQueueButton");
-    const createFolderButton = document.getElementById("createFolderButton");
-    const createFolderModal = document.getElementById("createFolderModal");
-    const closeCreateFolderModal = document.getElementById("closeCreateFolderModal");
-    const cancelCreateFolder = document.getElementById("cancelCreateFolder");
-    const createFolderForm = document.getElementById("createFolderForm");
-    const folderNameInput = document.getElementById("folderNameInput");
-    const createFolderStatus = document.getElementById("createFolderStatus");
-    const submitCreateFolder = document.getElementById("submitCreateFolder");
-    let pendingUploads = [];
-
-    function createQueueId() {
-      if (window.crypto && typeof window.crypto.randomUUID === "function") {
-        return window.crypto.randomUUID();
-      }
-
-      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
-    function escapeHtml(value) {
-      return value
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function formatBytes(bytes) {
-      if (bytes < 1024) {
-        return `${bytes} B`;
-      }
-
-      const units = ["KB", "MB", "GB"];
-      let size = bytes / 1024;
-      let unitIndex = 0;
-
-      while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex += 1;
-      }
-
-      return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
-    }
-
-    async function readErrorMessage(response, fallbackMessage) {
-      try {
-        const errorBody = await response.json();
-        return errorBody.message || fallbackMessage;
-      } catch (error) {
-        return fallbackMessage;
-      }
-    }
-
-    function resolveNetworkErrorMessage(error) {
-      if (error instanceof TypeError && error.message === "Failed to fetch") {
-        return "Không kết nối được tới server. Kiểm tra backend có đang chạy không, URL có đúng không, hoặc file có vượt giới hạn request khiến kết nối bị ngắt không.";
-      }
-
-      return error.message || "Đã xảy ra lỗi không xác định.";
-    }
-
-    function resolveFileIcon(file) {
-      if (file.type.startsWith("video/")) {
-        return "video";
-      }
-
-      if (file.type.includes("pdf") || file.type.startsWith("text/")) {
-        return "file-text";
-      }
-
-      if (file.type.includes("zip") || file.type.includes("compressed")) {
-        return "archive";
-      }
-
-      return "file";
-    }
-
-    function stageFiles(files) {
-      const selectedFiles = Array.from(files);
-
-      selectedFiles.forEach((file) => {
-        pendingUploads.push({
-          id: createQueueId(),
-          file,
-          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null
-        });
-      });
-
-      fileInput.value = "";
-      renderUploadQueue();
-    }
-
-    function renderUploadQueue() {
-      if (pendingUploads.length === 0) {
-        uploadPreviewPanel.classList.add("hidden");
-        previewList.innerHTML = "";
-        uploadQueueStatus.classList.add("hidden");
-        uploadQueueStatus.textContent = "";
-        return;
-      }
-
-      const totalBytes = pendingUploads.reduce((total, entry) => total + entry.file.size, 0);
-      uploadPreviewPanel.classList.remove("hidden");
-      uploadSummary.textContent = `${pendingUploads.length} file - ${formatBytes(totalBytes)}`;
-      previewList.innerHTML = pendingUploads.map((entry) => {
-        const fileName = escapeHtml(entry.file.name);
-        const fileType = escapeHtml(entry.file.type || "Không rõ định dạng");
-        const thumbnail = entry.previewUrl
-          ? `<img src="${entry.previewUrl}" alt="Preview ${fileName}" class="h-full w-full object-cover" />`
-          : `<div class="flex h-full w-full items-center justify-center bg-slate-100 text-slate-500"><i data-lucide="${resolveFileIcon(entry.file)}" class="h-9 w-9"></i></div>`;
-
-        return `
-          <article class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div class="aspect-video overflow-hidden bg-slate-100">${thumbnail}</div>
-            <div class="flex items-start justify-between gap-3 p-4">
-              <div class="min-w-0">
-                <h4 class="truncate text-sm font-bold text-slate-950">${fileName}</h4>
-                <p class="mt-1 truncate text-xs font-semibold text-slate-500">${fileType} - ${formatBytes(entry.file.size)}</p>
-              </div>
-              <button class="remove-queued-file shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" type="button" data-id="${entry.id}" aria-label="Xóa file khỏi hàng chờ">
-                <i data-lucide="x" class="h-4 w-4"></i>
-              </button>
             </div>
           </article>
-        `;
-      }).join("");
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
 
-      document.querySelectorAll(".remove-queued-file").forEach((button) => {
-        button.addEventListener("click", () => removeQueuedFile(button.dataset.id));
-      });
+<div id="createFolderModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+  <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+    <h3 class="mb-4 text-lg font-extrabold text-slate-950">Tạo thư mục mới</h3>
+    <form id="createFolderForm" class="space-y-4">
+      <input id="folderNameInput" type="text" placeholder="Tên thư mục" required class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+      <div class="flex justify-end gap-3">
+        <button id="cancelCreateFolder" class="rounded-xl border border-slate-200 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50" type="button">Hủy</button>
+        <button type="submit" class="rounded-xl bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-700">Tạo</button>
+      </div>
+    </form>
+  </div>
+</div>
 
-      lucide.createIcons();
-    }
+<script>
+  lucide.createIcons();
 
-    function removeQueuedFile(id) {
-      const removedEntry = pendingUploads.find((entry) => entry.id === id);
-      if (removedEntry && removedEntry.previewUrl) {
-        URL.revokeObjectURL(removedEntry.previewUrl);
-      }
+  // Elements
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const uploadPreviewPanel = document.getElementById("uploadPreviewPanel");
+  const previewList = document.getElementById("previewList");
+  const uploadSummary = document.getElementById("uploadSummary");
+  const uploadQueueStatus = document.getElementById("uploadQueueStatus");
+  const submitUploadButton = document.getElementById("submitUploadButton");
+  const clearQueueButton = document.getElementById("clearQueueButton");
 
-      pendingUploads = pendingUploads.filter((entry) => entry.id !== id);
-      renderUploadQueue();
-    }
-
-    function clearUploadQueue() {
-      pendingUploads.forEach((entry) => {
-        if (entry.previewUrl) {
-          URL.revokeObjectURL(entry.previewUrl);
-        }
-      });
-      pendingUploads = [];
-      submitUploadButton.disabled = false;
-      renderUploadQueue();
-    }
-
-    async function uploadQueuedFiles() {
-      const userId = document.body.dataset.userId;
-
-      if (!userId) {
-        alert("Không tìm thấy userId hiện tại.");
-        return;
-      }
-
-      if (pendingUploads.length === 0) {
-        return;
-      }
-
-      submitUploadButton.disabled = true;
-      uploadQueueStatus.classList.remove("hidden");
-      uploadQueueStatus.textContent = `Đang upload ${pendingUploads.length} file lên VibeCloud...`;
-
-      try {
-        for (const entry of pendingUploads) {
-          const formData = new FormData();
-          formData.append("file", entry.file);
-          formData.append("userId", userId);
-
-          const response = await fetch("/api/files/upload", {
-            method: "POST",
-            body: formData
-          });
-
-          if (!response.ok) {
-            let message = `Upload thất bại: ${entry.file.name}`;
-            message = await readErrorMessage(response, message);
-            throw new Error(message);
-          }
-        }
-
-        clearUploadQueue();
-        window.location.reload();
-      } catch (error) {
-        console.error("VibeCloud upload error:", error);
-        uploadQueueStatus.textContent = resolveNetworkErrorMessage(error);
-        submitUploadButton.disabled = false;
-      }
-    }
-
-    function openCreateFolderModal() {
-      createFolderStatus.classList.add("hidden");
-      createFolderStatus.textContent = "";
-      submitCreateFolder.disabled = false;
-      folderNameInput.value = "";
+  // Khởi tạo Folder
+  const createFolderModal = document.getElementById("createFolderModal");
+  document.getElementById("createFolderButton")?.addEventListener("click", () => {
       createFolderModal.classList.remove("hidden");
       createFolderModal.classList.add("flex");
-      folderNameInput.focus();
-    }
-
-    function closeFolderModal() {
+  });
+  document.getElementById("cancelCreateFolder").addEventListener("click", () => {
       createFolderModal.classList.add("hidden");
       createFolderModal.classList.remove("flex");
-    }
+  });
 
-    async function createFolder(event) {
-      event.preventDefault();
+  let pendingUploads = [];
 
-      const userId = document.body.dataset.userId;
-      const folderName = folderNameInput.value.trim();
+  // Kéo thả và Preview
+  ["dragenter", "dragover", "dragleave", "drop"].forEach(e => dropzone.addEventListener(e, ev => ev.preventDefault()));
+  dropzone.addEventListener("drop", e => { if (e.dataTransfer.files.length > 0) stageFiles(e.dataTransfer.files); });
+  fileInput.addEventListener("change", e => { if (e.target.files.length > 0) stageFiles(e.target.files); });
 
-      if (!folderName) {
-        createFolderStatus.className = "rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700";
-        createFolderStatus.textContent = "Vui lòng nhập tên thư mục.";
-        return;
-      }
-
-      submitCreateFolder.disabled = true;
-      createFolderStatus.className = "rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700";
-      createFolderStatus.textContent = "Đang tạo thư mục...";
-
-      try {
-        const response = await fetch(`/api/folders?userId=${encodeURIComponent(userId)}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            name: folderName,
-            parentId: null
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(await readErrorMessage(response, "Không thể tạo thư mục."));
-        }
-
-        window.location.reload();
-      } catch (error) {
-        console.error("Create folder error:", error);
-        createFolderStatus.className = "rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700";
-        createFolderStatus.textContent = resolveNetworkErrorMessage(error);
-        submitCreateFolder.disabled = false;
-      }
-    }
-
-    async function deleteFile(fileId) {
-      const userId = document.body.dataset.userId;
-      if (!fileId || !userId) {
-        return;
-      }
-
-      if (!confirm("Chuyển file này vào thùng rác?")) {
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/files/${encodeURIComponent(fileId)}?userId=${encodeURIComponent(userId)}`, {
-          method: "DELETE"
-        });
-
-        if (!response.ok) {
-          throw new Error(await readErrorMessage(response, "Không thể xóa file."));
-        }
-
-        window.location.reload();
-      } catch (error) {
-        console.error("Delete file error:", error);
-        alert(resolveNetworkErrorMessage(error));
-      }
-    }
-
-    ["dragenter", "dragover"].forEach((eventName) => {
-      dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        dropzone.classList.add("border-blue-500", "bg-blue-50");
+  function stageFiles(files) {
+    Array.from(files).forEach(file => {
+      pendingUploads.push({
+        id: Math.random().toString(36).substr(2, 9),
+        file: file,
+        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null
       });
     });
+    renderQueue();
+  }
 
-    ["dragleave", "drop"].forEach((eventName) => {
-      dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        dropzone.classList.remove("border-blue-500", "bg-blue-50");
+  function renderQueue() {
+    if (pendingUploads.length === 0) {
+      uploadPreviewPanel.classList.add("hidden");
+      return;
+    }
+    uploadPreviewPanel.classList.remove("hidden");
+    uploadSummary.textContent = `${pendingUploads.length} file chờ tải lên`;
+    previewList.innerHTML = pendingUploads.map(entry => `
+      <div class="flex items-center gap-3 p-3 border rounded-xl">
+        ${entry.previewUrl ? `<img src="${entry.previewUrl}" class="h-10 w-10 rounded object-cover">` : `<div class="h-10 w-10 bg-slate-100 rounded flex items-center justify-center"><i data-lucide="file" class="w-5 h-5"></i></div>`}
+        <div class="flex-1 truncate"><p class="text-sm font-bold truncate">${entry.file.name}</p></div>
+      </div>
+    `).join("");
+    lucide.createIcons();
+  }
+
+  clearQueueButton.addEventListener("click", () => {
+    pendingUploads = [];
+    renderQueue();
+  });
+
+  // UPLOAD LOGIC VỚI FOLDER HIỆN TẠI
+  submitUploadButton.addEventListener("click", async () => {
+    const userId = document.body.dataset.userId;
+    const folderId = document.body.dataset.folderId; // Tự động lấy Folder ID hiện tại
+
+    submitUploadButton.disabled = true;
+    submitUploadButton.textContent = "Đang tải lên...";
+
+    try {
+      for (const entry of pendingUploads) {
+        const formData = new FormData();
+        formData.append("file", entry.file);
+        formData.append("userId", userId);
+        if (folderId) formData.append("folderId", folderId);
+
+        const res = await fetch("/api/files/upload", { method: "POST", body: formData });
+        if(!res.ok) throw new Error("Upload lỗi");
+      }
+      window.location.reload();
+    } catch (error) {
+      alert("Lỗi khi tải file lên");
+      submitUploadButton.disabled = false;
+      submitUploadButton.textContent = "Tải lên ngay";
+    }
+  });
+
+  // CREATE FOLDER LOGIC VỚI PARENT ID
+  document.getElementById("createFolderForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const folderName = document.getElementById("folderNameInput").value;
+    const userId = document.body.dataset.userId;
+    const parentId = document.body.dataset.folderId; // Lấy thư mục cha hiện hành
+
+    try {
+      const res = await fetch(`/api/folders?userId=${userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: folderName, parentId: parentId || null })
       });
-    });
+      if(res.ok) window.location.reload();
+      else alert("Lỗi khi tạo thư mục");
+    } catch (e) { alert("Lỗi hệ thống"); }
+  });
 
-    dropzone.addEventListener("drop", (event) => {
-      if (event.dataTransfer.files.length > 0) {
-        stageFiles(event.dataTransfer.files);
+  // Xóa File (Thùng rác)
+  document.querySelectorAll(".delete-file-button").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if(confirm("Chuyển vào thùng rác?")) {
+        const fileId = btn.dataset.fileId;
+        const userId = document.body.dataset.userId;
+        await fetch(`/api/files/${fileId}?userId=${userId}`, { method: "DELETE" });
+        window.location.reload();
       }
     });
-
-    uploadButton.addEventListener("click", () => fileInput.click());
-    submitUploadButton.addEventListener("click", uploadQueuedFiles);
-    clearQueueButton.addEventListener("click", clearUploadQueue);
-    createFolderButton.addEventListener("click", openCreateFolderModal);
-    closeCreateFolderModal.addEventListener("click", closeFolderModal);
-    cancelCreateFolder.addEventListener("click", closeFolderModal);
-    createFolderForm.addEventListener("submit", createFolder);
-
-    document.querySelectorAll(".delete-file-button").forEach((button) => {
-      button.addEventListener("click", () => deleteFile(button.dataset.fileId));
-    });
-
-    fileInput.addEventListener("change", (event) => {
-      if (event.target.files.length > 0) {
-        stageFiles(event.target.files);
-      }
-    });
-  </script>
+  });
+</script>
 </body>
 </html>
